@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>ポケカ カウンター</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --app-height: 100dvh;
+        }
+        body {
+            overscroll-behavior: none;
+            -webkit-touch-callout: none;
+            user-select: none;
+            height: var(--app-height);
+            width: 100vw;
+            overflow: hidden;
+            position: fixed;
+        }
+        .pokemon-slot {
+            min-height: 0;
+            flex: 1 1 0%;
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+        }
+        .dmg-text {
+            font-family: 'Arial Rounded MT Bold', sans-serif;
+            line-height: 1;
+            min-width: 1.5em;
+            text-align: center;
+        }
+        /* 反転時のレイアウト微調整 */
+        .flipped-area {
+            transform: rotate(180deg);
+        }
+
+        @media (max-height: 450px) {
+            .dmg-text { font-size: 1.25rem !important; }
+            .slot-header { font-size: 8px; padding: 1px 0; }
+            .slot-footer { height: 1.4rem; font-size: 8px; }
+        }
+    </style>
+</head>
+<body class="bg-gray-200 text-gray-800 flex flex-col font-sans">
+
+    <!-- ヘッダー -->
+    <header class="h-10 bg-gray-800 text-white flex items-center px-2 shadow-md shrink-0 z-20 overflow-hidden">
+        <div class="flex-1 min-w-[60px]">
+            <button onclick="toggleFlip()" class="px-2 py-0.5 bg-gray-600 rounded text-[10px] font-bold active:bg-gray-500 border border-gray-500 whitespace-nowrap">🔁 反転</button>
+        </div>
+        
+        <div class="flex-[2] flex justify-center items-center gap-1 sm:gap-2">
+            <div id="timer-display" class="text-lg font-mono font-bold text-yellow-400 w-14 text-center shrink-0">25:00</div>
+            <div class="flex gap-1 shrink">
+                <button id="timer-btn" onclick="toggleTimer()" class="px-2 py-0.5 bg-green-500 text-white text-[10px] font-bold rounded shadow active:scale-95 transition-all whitespace-nowrap shrink">開始</button>
+                <button onclick="resetTimer()" class="px-2 py-0.5 bg-gray-600 text-white text-[10px] font-bold rounded shadow active:scale-95 transition-all whitespace-nowrap shrink">リセット</button>
+            </div>
+        </div>
+        
+        <div class="flex-1 min-w-[60px] text-right text-[10px] font-bold text-gray-600 hidden sm:block">PTCG</div>
+    </header>
+
+    <!-- メインボード -->
+    <main class="flex-1 flex flex-col p-1 gap-1 min-h-0 bg-gray-300 relative">
+        
+        <!-- 相手エリア: 反転時 flex-col-reverse をトグルすることでバトル場を中央に維持 -->
+        <section id="opponent-area" class="flex-1 flex flex-col gap-1 transition-all duration-300 bg-red-900/5 p-1 rounded-lg border border-red-900/10 min-h-0">
+            <div id="opp-bench-container" class="flex-[0.7] flex gap-1 min-h-0 order-1"></div>
+            <div id="opp-active-row" class="flex-1 flex justify-center gap-4 items-center px-4 min-h-0 relative order-2">
+                <div id="opp-status-container" class="shrink-0 w-14 sm:w-20"></div>
+                <div id="opp-active-container" class="w-1/3 shrink-0 h-full max-w-[220px]"></div>
+                <div class="w-14 sm:w-20"></div>
+            </div>
+        </section>
+
+        <div class="h-px bg-gray-400 opacity-30 mx-12 shrink-0"></div>
+
+        <!-- 自分エリア -->
+        <section id="player-area" class="flex-1 flex flex-col flex-col-reverse gap-1 bg-blue-900/5 p-1 rounded-lg border border-blue-900/10 min-h-0">
+            <div id="player-bench-container" class="flex-[0.7] flex gap-1 min-h-0"></div>
+            <div class="flex-1 flex justify-center gap-4 items-center px-4 min-h-0 relative">
+                <div class="w-14 sm:w-20"></div>
+                <div id="player-active-container" class="w-1/3 shrink-0 h-full max-w-[220px]"></div>
+                <div id="player-status-container" class="shrink-0 w-14 sm:w-20"></div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        let damages = {};
+
+        function updateDamageDisplay(id) {
+            const el = document.getElementById(`dmg-${id}`);
+            if (!el) return;
+            const val = damages[id] || 0;
+            el.textContent = val;
+            el.className = `dmg-text font-black transition-colors ${val > 0 ? 'text-red-600' : 'text-gray-800'}`;
+            if (val >= 100) {
+                el.style.fontSize = "min(8vw, 2.5rem)";
+            } else {
+                el.style.fontSize = "min(10vw, 3rem)";
+            }
+        }
+
+        function changeDamage(id, amount) {
+            damages[id] = (damages[id] || 0) + amount;
+            if (damages[id] < 0) damages[id] = 0;
+            updateDamageDisplay(id);
+        }
+
+        function createSlot(id, label, isActive = false) {
+            const color = isActive ? "bg-red-100 text-red-800" : "bg-gray-100 text-gray-600";
+            return `
+            <div class="pokemon-slot bg-white rounded shadow border border-gray-300 overflow-hidden">
+                <div class="slot-header text-[8px] sm:text-[10px] text-center font-bold ${color} truncate px-1">${label}</div>
+                <div class="flex-1 flex items-center justify-center cursor-pointer active:bg-gray-100 transition-colors" onclick="changeDamage('${id}', 10)">
+                    <span id="dmg-${id}" class="dmg-text font-black" style="font-size: min(10vw, 3rem)">0</span>
+                </div>
+                <div class="slot-footer flex border-t border-gray-100 h-6 sm:h-8 shrink-0 text-[8px] sm:text-[10px]">
+                    <button class="flex-1 bg-blue-50 text-blue-700 active:bg-blue-200 font-bold border-r border-gray-100" onclick="event.stopPropagation(); changeDamage('${id}', -10)">-10</button>
+                    <button class="flex-1 bg-red-50 text-red-700 active:bg-red-200 font-bold border-r border-gray-100" onclick="event.stopPropagation(); changeDamage('${id}', 50)">+50</button>
+                    <button class="w-8 bg-gray-50 text-gray-400 active:bg-gray-200 font-bold" onclick="event.stopPropagation(); damages['${id}']=0; updateDamageDisplay('${id}')">×</button>
+                </div>
+            </div>`;
+        }
+
+        function toggleStatus(btn, activeBg) {
+            const isActive = btn.classList.contains(activeBg);
+            if (isActive) {
+                btn.classList.remove(activeBg, 'text-white');
+                btn.classList.add('bg-white');
+            } else {
+                btn.classList.add(activeBg, 'text-white');
+                btn.classList.remove('bg-white');
+            }
+        }
+
+        function createStatusMarkers() {
+            const states = [
+                {n:'毒', bg:'bg-purple-600', t:'text-purple-600', b:'border-purple-600'},
+                {n:'火', bg:'bg-red-600', t:'text-red-600', b:'border-red-600'},
+                {n:'眠', bg:'bg-blue-500', t:'text-blue-500', b:'border-blue-500'},
+                {n:'麻', bg:'bg-yellow-500', t:'text-yellow-600', b:'border-yellow-500'}
+            ];
+            return `<div class="grid grid-cols-2 gap-1 w-full h-full">` + states.map(s => `
+                <button class="aspect-square rounded border-2 ${s.b} ${s.t} font-bold bg-white text-[10px] active:scale-95 transition-all" 
+                onclick="toggleStatus(this, '${s.bg}')">${s.n}</button>
+            `).join('') + `</div>`;
+        }
+
+        let timerId = null, isRunning = false, timeLeft = 25 * 60;
+        function updateTimerDisplay() {
+            const m = Math.floor(timeLeft / 60), s = timeLeft % 60;
+            document.getElementById('timer-display').textContent = `${m}:${s.toString().padStart(2, '0')}`;
+        }
+        function toggleTimer() {
+            const btn = document.getElementById('timer-btn');
+            if (isRunning) { 
+                clearInterval(timerId); 
+                btn.textContent = '開始'; 
+                btn.classList.replace('bg-yellow-500','bg-green-500'); 
+            } else { 
+                timerId = setInterval(() => { if(timeLeft>0){timeLeft--; updateTimerDisplay();} }, 1000);
+                btn.textContent = '停止'; 
+                btn.classList.replace('bg-green-500','bg-yellow-500');
+            }
+            isRunning = !isRunning;
+        }
+        function resetTimer() { 
+            clearInterval(timerId); 
+            isRunning=false; 
+            timeLeft=25 * 60; 
+            updateTimerDisplay(); 
+            const btn = document.getElementById('timer-btn');
+            btn.textContent='開始';
+            btn.classList.remove('bg-yellow-500');
+            btn.classList.add('bg-green-500');
+        }
+
+        function toggleFlip() { 
+            const area = document.getElementById('opponent-area');
+            area.classList.toggle('flipped-area');
+            // 反転時に flex 方向も逆にすることで、バトル場が中央に来るようにする
+            area.classList.toggle('flex-col-reverse');
+        }
+
+        window.onload = () => {
+            ['opp', 'player'].forEach(side => {
+                document.getElementById(`${side}-bench-container`).innerHTML = [1,2,3,4,5].map(i => createSlot(`${side}-b${i}`, `ベンチ ${i}`)).join('');
+                document.getElementById(`${side}-active-container`).innerHTML = createSlot(`${side}-a`, 'バトル場', true);
+                document.getElementById(`${side}-status-container`).innerHTML = createStatusMarkers();
+            });
+        };
+    </script>
+</body>
+</html>
