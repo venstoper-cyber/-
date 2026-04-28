@@ -31,16 +31,9 @@
             min-width: 1.5em;
             text-align: center;
         }
+        /* 反転時のレイアウト微調整 */
         .flipped-area {
             transform: rotate(180deg);
-        }
-        /* コイン回転アニメーション */
-        @keyframes coin-flip {
-            0% { transform: rotateY(0); }
-            100% { transform: rotateY(1800deg); }
-        }
-        .flipping {
-            animation: coin-flip 0.6s ease-out;
         }
 
         @media (max-height: 450px) {
@@ -72,7 +65,7 @@
     <!-- メインボード -->
     <main class="flex-1 flex flex-col p-1 gap-1 min-h-0 bg-gray-300 relative">
         
-        <!-- 相手エリア -->
+        <!-- 相手エリア: 反転時 flex-col-reverse をトグルすることでバトル場を中央に維持 -->
         <section id="opponent-area" class="flex-1 flex flex-col gap-1 transition-all duration-300 bg-red-900/5 p-1 rounded-lg border border-red-900/10 min-h-0">
             <div id="opp-bench-container" class="flex-[0.7] flex gap-1 min-h-0 order-1"></div>
             <div id="opp-active-row" class="flex-1 flex justify-center gap-4 items-center px-4 min-h-0 relative order-2">
@@ -88,16 +81,8 @@
         <section id="player-area" class="flex-1 flex flex-col flex-col-reverse gap-1 bg-blue-900/5 p-1 rounded-lg border border-blue-900/10 min-h-0">
             <div id="player-bench-container" class="flex-[0.7] flex gap-1 min-h-0"></div>
             <div class="flex-1 flex justify-center gap-4 items-center px-4 min-h-0 relative">
-                <!-- コインルーレット -->
-                <div class="shrink-0 w-14 sm:w-20 flex justify-center items-center">
-                    <div id="coin" onclick="flipCoin()" class="w-12 h-12 rounded-full border-4 border-yellow-600 bg-yellow-400 flex items-center justify-center cursor-pointer shadow-lg active:scale-90 transition-transform">
-                        <span id="coin-text" class="text-[10px] font-black text-yellow-900">コイン</span>
-                    </div>
-                </div>
-                
+                <div class="w-14 sm:w-20"></div>
                 <div id="player-active-container" class="w-1/3 shrink-0 h-full max-w-[220px]"></div>
-                
-                <!-- 状態異常ボタン -->
                 <div id="player-status-container" class="shrink-0 w-14 sm:w-20"></div>
             </div>
         </section>
@@ -165,34 +150,6 @@
             `).join('') + `</div>`;
         }
 
-        // コインフリップ機能
-        let isFlipping = false;
-        function flipCoin() {
-            if (isFlipping) return;
-            isFlipping = true;
-            const coin = document.getElementById('coin');
-            const coinText = document.getElementById('coin-text');
-            
-            coin.classList.add('flipping');
-            coinText.textContent = "回転中";
-            
-            setTimeout(() => {
-                const isHeads = Math.random() < 0.5;
-                coin.classList.remove('flipping');
-                
-                if (isHeads) {
-                    coinText.textContent = "オモテ";
-                    coin.className = "w-12 h-12 rounded-full border-4 border-yellow-600 bg-yellow-400 flex items-center justify-center cursor-pointer shadow-lg active:scale-90 transition-transform";
-                    coinText.className = "text-[10px] font-black text-yellow-900";
-                } else {
-                    coinText.textContent = "ウラ";
-                    coin.className = "w-12 h-12 rounded-full border-4 border-gray-600 bg-gray-400 flex items-center justify-center cursor-pointer shadow-lg active:scale-90 transition-transform";
-                    coinText.className = "text-[10px] font-black text-gray-800";
-                }
-                isFlipping = false;
-            }, 600);
-        }
-
         let timerId = null, isRunning = false, timeLeft = 25 * 60;
         function updateTimerDisplay() {
             const m = Math.floor(timeLeft / 60), s = timeLeft % 60;
@@ -225,6 +182,7 @@
         function toggleFlip() { 
             const area = document.getElementById('opponent-area');
             area.classList.toggle('flipped-area');
+            // 反転時に flex 方向も逆にすることで、バトル場が中央に来るようにする
             area.classList.toggle('flex-col-reverse');
         }
 
